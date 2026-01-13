@@ -5,3 +5,5 @@ flask_wtf
 wtforms
 gunicorn
 python-dateutil
+pandas
+openpyxl
