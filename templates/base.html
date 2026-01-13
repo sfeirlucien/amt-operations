@@ -19,6 +19,28 @@
     </style>
 </head>
 <body>
+    <div class="dropdown me-3">
+    <a href="#" class="position-relative text-white" id="alertBell" data-bs-toggle="dropdown">
+        <i class="fas fa-bell fs-4"></i>
+        {% if alerts %}
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+            {{ alerts|length }}
+        </span>
+        {% endif %}
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 p-2" style="width: 300px; max-height: 400px; overflow-y: auto;">
+        <h6 class="dropdown-header border-bottom">Compliance Alerts</h6>
+        {% for alert in alerts %}
+        <li class="p-2 border-bottom small">
+            <span class="status-dot bg-{{ alert.color }}"></span> 
+            <strong>{{ alert.vessel }}</strong>: {{ alert.cert }} 
+            <div class="text-muted">{{ alert.label }}</div>
+        </li>
+        {% else %}
+        <li class="p-3 text-center text-muted">No alerts at this time.</li>
+        {% endfor %}
+    </ul>
+</div>
     <div class="sidebar">
         <h4 class="text-white fw-bold mb-5 px-3"><i class="fas fa-anchor me-2"></i> AMT OPS</h4>
         <nav class="nav flex-column">
@@ -34,4 +56,5 @@
         {% block content %}{% endblock %}
     </div>
 </body>
+
 </html>
