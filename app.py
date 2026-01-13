@@ -32,8 +32,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# 4. Database Config
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'amt_ops_vfinal.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(UPLOAD_FOLDER, 'amt_ops_vfinal.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -154,3 +153,4 @@ if __name__ == '__main__':
             db.session.add(User(username='admin', password='admin_password_2026', role='admin'))
             db.session.commit()
     app.run(debug=True)
+
