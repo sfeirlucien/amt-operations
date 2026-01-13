@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card card-vessel p-4 mb-4 border-0">
+<div class="card card-custom p-4 mb-4 border-0">
     <form action="/" method="GET" class="row g-3 align-items-end">
         <div class="col-md-4">
             <label class="small fw-bold text-muted">Vessel Name</label>
-            <input type="text" name="vessel" class="form-control" placeholder="Search Vessel..." value="{{ request.args.get('vessel', '') }}">
+            <input type="text" name="vessel" class="form-control" placeholder="Search..." value="{{ request.args.get('vessel', '') }}">
         </div>
         <div class="col-md-3">
             <label class="small fw-bold text-muted">Class Society</label>
@@ -13,63 +13,45 @@
                 <option value="ABS">ABS</option><option value="DNV">DNV</option><option value="LR">LR</option>
             </select>
         </div>
-        <div class="col-md-2"><button class="btn btn-primary w-100 rounded-pill">Apply Filters</button></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100 rounded-pill">Filter</button></div>
         <div class="col-md-1"><a href="/" class="btn btn-light w-100 rounded-pill"><i class="fas fa-redo"></i></a></div>
     </form>
 </div>
 
-
-
 <div class="row row-cols-1 row-cols-xl-3 g-4">
     {% for v in vessels %}
     <div class="col">
-        <div class="card card-vessel h-100 p-4">
+        <div class="card card-custom h-100 p-4">
             <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
                 <h5 class="fw-bold m-0 text-primary">{{ v.name }}</h5>
                 <span class="badge bg-dark small align-self-center">{{ v.class_society }}</span>
             </div>
             
             {% for category, certs in v.certificates|groupby('category') %}
-            <div class="small fw-bold text-uppercase text-muted mt-3 mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">{{ category }}</div>
-            
+            <div class="small fw-bold text-uppercase text-muted mt-3 mb-2" style="font-size: 0.7rem;">{{ category }}</div>
             {% for c in certs %}
             <div class="d-flex justify-content-between align-items-center mb-2 small">
                 <span>{{ c.name }}</span>
                 <div class="d-flex align-items-center">
                     <span class="badge bg-{{ c.get_status().bg }} me-2">{{ c.get_status().label }}</span>
-                    
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-light p-1" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-ellipsis-v text-muted"></i>
-                        </button>
+                        <button class="btn btn-sm btn-light p-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
                         <ul class="dropdown-menu shadow border-0">
-                            <li><button class="dropdown-item small" data-bs-toggle="modal" data-bs-target="#edit{{c.id}}"><i class="fas fa-edit me-2"></i>Update / Rename</button></li>
-                            <li><a class="dropdown-item small text-danger" href="/cert/{{c.id}}/delete" onclick="return confirm('Confirm delete?')"><i class="fas fa-trash-alt me-2"></i>Delete</a></li>
-                            {% if c.file_path %}
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item small" href="/uploads/{{c.file_path}}" target="_blank"><i class="fas fa-file-pdf me-2"></i>View PDF</a></li>
-                            {% endif %}
+                            <li><button class="dropdown-item small" data-bs-toggle="modal" data-bs-target="#edit{{c.id}}">Update / Rename</button></li>
+                            <li><a class="dropdown-item small text-danger" href="{{ url_for('delete_cert', id=c.id) }}" onclick="return confirm('Delete?')">Delete</a></li>
+                            {% if c.file_path %}<li><a class="dropdown-item small" href="{{ url_for('view_file', filename=c.file_path) }}" target="_blank">View PDF</a></li>{% endif %}
                         </ul>
                     </div>
                 </div>
             </div>
 
-            <div class="modal fade" id="edit{{c.id}}" tabindex="-1" aria-hidden="true">
+            <div class="modal fade" id="edit{{c.id}}">
                 <div class="modal-dialog">
-                    <form action="/cert/{{c.id}}/update" method="POST" class="modal-content p-4 shadow-lg border-0" style="border-radius: 15px;">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold m-0 text-primary">Update: {{c.name}}</h6>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="mb-3">
-                            <label class="small fw-bold text-muted mb-1">Rename Certificate</label>
-                            <input name="new_name" class="form-control" value="{{c.name}}" required>
-                        </div>
-                        <div class="mb-4">
-                            <label class="small fw-bold text-muted mb-1">New Expiry Date</label>
-                            <input type="date" name="new_expiry" class="form-control" value="{{c.expiry_date}}" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Save Changes</button>
+                    <form action="{{ url_for('update_cert', id=c.id) }}" method="POST" class="modal-content p-4">
+                        <h6 class="fw-bold mb-3">Update: {{c.name}}</h6>
+                        <input name="new_name" class="form-control mb-2" value="{{c.name}}">
+                        <input type="date" name="new_expiry" class="form-control mb-3" value="{{c.expiry_date}}">
+                        <button class="btn btn-primary btn-sm rounded-pill">Save Changes</button>
                     </form>
                 </div>
             </div>
