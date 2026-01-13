@@ -9,14 +9,14 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
-# 1. Setup Logging
+# Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'amt_enterprise_v9_2026'
+app.config['SECRET_KEY'] = 'amt_enterprise_final_2026'
 
-# 2. Path Management
+# Path Management
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.exists('/opt/render/project/src/uploads'):
     UPLOAD_FOLDER = '/opt/render/project/src/uploads'
@@ -25,7 +25,7 @@ else:
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-db_path = os.path.join(UPLOAD_FOLDER, 'amt_v9_final.db')
+db_path = os.path.join(UPLOAD_FOLDER, 'amt_v10_final.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -33,7 +33,7 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# 3. Models
+# Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
@@ -75,7 +75,7 @@ def log_action(msg):
     db.session.add(log)
     db.session.commit()
 
-# 4. Initialization
+# Init
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
@@ -86,7 +86,7 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# 5. Routes
+# Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -101,27 +101,19 @@ def login():
 @app.route('/')
 @login_required
 def dashboard():
-    # Filtering Logic
     v_filter = request.args.get('vessel', '')
     c_filter = request.args.get('class', '')
-    s_filter = request.args.get('status', '')
-
     vessels_query = Vessel.query
-    if v_filter:
-        vessels_query = vessels_query.filter(Vessel.name.contains(v_filter))
-    if c_filter:
-        vessels_query = vessels_query.filter(Vessel.class_society == c_filter)
-    
+    if v_filter: vessels_query = vessels_query.filter(Vessel.name.contains(v_filter))
+    if c_filter: vessels_query = vessels_query.filter(Vessel.class_society == c_filter)
     vessels = vessels_query.all()
     
-    # Alert Bell
     alerts = []
     for v in Vessel.query.all():
         for c in v.certificates:
             stat = c.get_status()
             if stat['code'] in ['red', 'amber']:
                 alerts.append({'v': v.name, 'c': c.name, 's': stat['label'], 'bg': stat['bg']})
-                
     return render_template('dashboard.html', vessels=vessels, alerts=alerts)
 
 @app.route('/admin', methods=['GET', 'POST'])
@@ -144,19 +136,42 @@ def admin():
         elif action == 'add_user':
             u = User(username=request.form.get('new_user'), password=request.form.get('new_pass'), role=request.form.get('new_role'))
             db.session.add(u)
+        elif action == 'restore_db':
+            f = request.files.get('backup_file')
+            if f:
+                f.save(db_path)
+                return redirect(url_for('logout'))
         db.session.commit()
     
-    vessels = Vessel.query.all()
-    users = User.query.all()
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(50).all()
-    return render_template('admin.html', vessels=vessels, users=users, logs=logs)
+    return render_template('admin.html', vessels=Vessel.query.all(), users=User.query.all(), logs=AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(50).all())
+
+@app.route('/cert/delete/<int:id>')
+@login_required
+def delete_cert(id):
+    if current_user.role == 'admin':
+        c = Certificate.query.get_or_404(id)
+        name = c.name
+        db.session.delete(c)
+        db.session.commit()
+        log_action(f"Deleted Cert: {name}")
+    return redirect(url_for('dashboard'))
+
+@app.route('/cert/update/<int:id>', methods=['POST'])
+@login_required
+def update_cert(id):
+    c = Certificate.query.get_or_404(id)
+    c.name = request.form.get('new_name')
+    c.expiry_date = datetime.strptime(request.form.get('new_expiry'), '%Y-%m-%d').date()
+    db.session.commit()
+    log_action(f"Updated Cert: {c.name}")
+    return redirect(url_for('dashboard'))
 
 @app.route('/user/delete/<int:id>')
 @login_required
 def delete_user(id):
     if current_user.role == 'admin':
         u = User.query.get(id)
-        if u.username != 'admin': # Protect master admin
+        if u.username != 'admin':
             db.session.delete(u)
             db.session.commit()
     return redirect(url_for('admin'))
@@ -165,6 +180,11 @@ def delete_user(id):
 @login_required
 def backup():
     return send_file(db_path, as_attachment=True)
+
+@app.route('/uploads/<filename>')
+@login_required
+def view_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/logout')
 def logout():
