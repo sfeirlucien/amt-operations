@@ -18,6 +18,8 @@
     </form>
 </div>
 
+
+
 <div class="row row-cols-1 row-cols-xl-3 g-4">
     {% for v in vessels %}
     <div class="col">
@@ -26,13 +28,49 @@
                 <h5 class="fw-bold m-0 text-primary">{{ v.name }}</h5>
                 <span class="badge bg-dark small align-self-center">{{ v.class_society }}</span>
             </div>
+            
             {% for category, certs in v.certificates|groupby('category') %}
             <div class="small fw-bold text-uppercase text-muted mt-3 mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">{{ category }}</div>
+            
             {% for c in certs %}
             <div class="d-flex justify-content-between align-items-center mb-2 small">
                 <span>{{ c.name }}</span>
-                <div>
+                <div class="d-flex align-items-center">
                     <span class="badge bg-{{ c.get_status().bg }} me-2">{{ c.get_status().label }}</span>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light p-1" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v text-muted"></i>
+                        </button>
+                        <ul class="dropdown-menu shadow border-0">
+                            <li><button class="dropdown-item small" data-bs-toggle="modal" data-bs-target="#edit{{c.id}}"><i class="fas fa-edit me-2"></i>Update / Rename</button></li>
+                            <li><a class="dropdown-item small text-danger" href="/cert/{{c.id}}/delete" onclick="return confirm('Confirm delete?')"><i class="fas fa-trash-alt me-2"></i>Delete</a></li>
+                            {% if c.file_path %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item small" href="/uploads/{{c.file_path}}" target="_blank"><i class="fas fa-file-pdf me-2"></i>View PDF</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="edit{{c.id}}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <form action="/cert/{{c.id}}/update" method="POST" class="modal-content p-4 shadow-lg border-0" style="border-radius: 15px;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold m-0 text-primary">Update: {{c.name}}</h6>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="mb-3">
+                            <label class="small fw-bold text-muted mb-1">Rename Certificate</label>
+                            <input name="new_name" class="form-control" value="{{c.name}}" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="small fw-bold text-muted mb-1">New Expiry Date</label>
+                            <input type="date" name="new_expiry" class="form-control" value="{{c.expiry_date}}" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Save Changes</button>
+                    </form>
                 </div>
             </div>
             {% endfor %}
