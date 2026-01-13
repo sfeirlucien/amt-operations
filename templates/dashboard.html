@@ -1,35 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-bold">Fleet Operations Dashboard</h2>
-    <form class="d-flex w-25"><input type="text" name="search" class="form-control rounded-pill border-0 shadow-sm" placeholder="Search Vessel..."></form>
+    <h3 class="fw-bold">Fleet Compliance</h3>
+    <input type="text" class="form-control w-25 shadow-sm" placeholder="Filter by Vessel...">
 </div>
 
-<div class="row">
+
+
+<div class="row row-cols-1 row-cols-lg-2 row-cols-xl-3 g-4">
     {% for v in vessels %}
-    <div class="col-12 mb-4">
-        <div class="card-pro p-4">
-            <div class="d-flex justify-content-between border-bottom pb-3 mb-3">
-                <div><h4 class="fw-bold mb-0">{{ v.name }}</h4><span class="text-muted small">IMO: {{ v.imo }} | Class: {{ v.class_society or 'N/A' }}</span></div>
-                <span class="badge bg-light text-dark align-self-center p-2">{{ v.flag }}</span>
+    <div class="col">
+        <div class="card card-vessel h-100 p-3">
+            <div class="d-flex justify-content-between border-bottom pb-2">
+                <h5 class="fw-bold m-0 text-primary">{{ v.name }}</h5>
+                <span class="badge bg-dark small align-self-center">{{ v.class_society }}</span>
             </div>
-            <div class="row">
-                <div class="col-md-9">
-                    <table class="table table-borderless align-middle">
-                        <thead class="text-muted small"><tr><th>Certificate</th><th>Expiry</th><th>Status</th><th>File</th></tr></thead>
-                        <tbody>
-                            {% for c in v.certificates %}
-                            <tr>
-                                <td class="fw-bold">{{ c.name }}</td>
-                                <td>{{ c.expiry_date }}</td>
-                                <td><span class="badge bg-{{ c.get_status().bg }}-subtle text-{{ c.get_status().bg }} rounded-pill p-2">{{ c.get_status().label }}</span></td>
-                                <td>{% if c.file_path %}<a href="/uploads/{{ c.file_path }}" target="_blank" class="text-danger"><i class="fas fa-file-pdf fs-5"></i></a>{% else %}<span class="text-muted small">No PDF</span>{% endif %}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            
+            {% for category, certs in v.certificates|groupby('category') %}
+            <div class="cat-badge mt-3 mb-2">{{ category }}</div>
+            <ul class="list-group list-group-flush">
+                {% for c in certs %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
+                    <div class="small">
+                        <span class="fw-bold d-block">{{ c.name }}</span>
+                        <span class="text-muted small">Expiry: {{ c.expiry_date }}</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-{{ c.get_status().bg }} me-2" style="width: 80px;">{{ c.get_status().label }}</span>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light p-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
+                            <ul class="dropdown-menu shadow border-0">
+                                <li><button class="dropdown-item small" data-bs-toggle="modal" data-bs-target="#edit{{c.id}}"><i class="fas fa-edit me-2"></i>Update</button></li>
+                                <li><a class="dropdown-item small text-danger" href="/cert/{{c.id}}/delete" onclick="return confirm('Delete Cert?')"><i class="fas fa-trash me-2"></i>Delete</a></li>
+                                {% if c.file_path %}<li><a class="dropdown-item small" href="/uploads/{{c.file_path}}" target="_blank"><i class="fas fa-file-pdf me-2"></i>View PDF</a></li>{% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                </li>
+
+                <div class="modal fade" id="edit{{c.id}}">
+                    <div class="modal-dialog"><form action="/cert/{{c.id}}/update" method="POST" class="modal-content p-3">
+                        <h6>Update: {{c.name}}</h6>
+                        <input name="new_name" class="form-control mb-2" value="{{c.name}}">
+                        <input type="date" name="new_expiry" class="form-control mb-3" value="{{c.expiry_date}}">
+                        <button class="btn btn-primary btn-sm">Save Changes</button>
+                    </form></div>
                 </div>
-            </div>
+                {% endfor %}
+            </ul>
+            {% endfor %}
         </div>
     </div>
     {% endfor %}
