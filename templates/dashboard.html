@@ -1,53 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold">Fleet Compliance</h3>
-    <input type="text" class="form-control w-25 shadow-sm" placeholder="Filter by Vessel...">
+<div class="card card-vessel p-4 mb-4 border-0">
+    <form action="/" method="GET" class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="small fw-bold text-muted">Vessel Name</label>
+            <input type="text" name="vessel" class="form-control" placeholder="Search Vessel..." value="{{ request.args.get('vessel', '') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="small fw-bold text-muted">Class Society</label>
+            <select name="class" class="form-select">
+                <option value="">All Classes</option>
+                <option value="ABS">ABS</option><option value="DNV">DNV</option><option value="LR">LR</option>
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100 rounded-pill">Apply Filters</button></div>
+        <div class="col-md-1"><a href="/" class="btn btn-light w-100 rounded-pill"><i class="fas fa-redo"></i></a></div>
+    </form>
 </div>
 
-
-
-<div class="row row-cols-1 row-cols-lg-2 row-cols-xl-3 g-4">
+<div class="row row-cols-1 row-cols-xl-3 g-4">
     {% for v in vessels %}
     <div class="col">
-        <div class="card card-vessel h-100 p-3">
-            <div class="d-flex justify-content-between border-bottom pb-2">
+        <div class="card card-vessel h-100 p-4">
+            <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
                 <h5 class="fw-bold m-0 text-primary">{{ v.name }}</h5>
                 <span class="badge bg-dark small align-self-center">{{ v.class_society }}</span>
             </div>
-            
             {% for category, certs in v.certificates|groupby('category') %}
-            <div class="cat-badge mt-3 mb-2">{{ category }}</div>
-            <ul class="list-group list-group-flush">
-                {% for c in certs %}
-                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
-                    <div class="small">
-                        <span class="fw-bold d-block">{{ c.name }}</span>
-                        <span class="text-muted small">Expiry: {{ c.expiry_date }}</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <span class="badge bg-{{ c.get_status().bg }} me-2" style="width: 80px;">{{ c.get_status().label }}</span>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-light p-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
-                            <ul class="dropdown-menu shadow border-0">
-                                <li><button class="dropdown-item small" data-bs-toggle="modal" data-bs-target="#edit{{c.id}}"><i class="fas fa-edit me-2"></i>Update</button></li>
-                                <li><a class="dropdown-item small text-danger" href="/cert/{{c.id}}/delete" onclick="return confirm('Delete Cert?')"><i class="fas fa-trash me-2"></i>Delete</a></li>
-                                {% if c.file_path %}<li><a class="dropdown-item small" href="/uploads/{{c.file_path}}" target="_blank"><i class="fas fa-file-pdf me-2"></i>View PDF</a></li>{% endif %}
-                            </ul>
-                        </div>
-                    </div>
-                </li>
-
-                <div class="modal fade" id="edit{{c.id}}">
-                    <div class="modal-dialog"><form action="/cert/{{c.id}}/update" method="POST" class="modal-content p-3">
-                        <h6>Update: {{c.name}}</h6>
-                        <input name="new_name" class="form-control mb-2" value="{{c.name}}">
-                        <input type="date" name="new_expiry" class="form-control mb-3" value="{{c.expiry_date}}">
-                        <button class="btn btn-primary btn-sm">Save Changes</button>
-                    </form></div>
+            <div class="small fw-bold text-uppercase text-muted mt-3 mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">{{ category }}</div>
+            {% for c in certs %}
+            <div class="d-flex justify-content-between align-items-center mb-2 small">
+                <span>{{ c.name }}</span>
+                <div>
+                    <span class="badge bg-{{ c.get_status().bg }} me-2">{{ c.get_status().label }}</span>
                 </div>
-                {% endfor %}
-            </ul>
+            </div>
+            {% endfor %}
             {% endfor %}
         </div>
     </div>
