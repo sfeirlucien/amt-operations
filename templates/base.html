@@ -7,37 +7,44 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --amt-navy: #0f172a; --amt-blue: #38bdf8; }
-        body { background: #f8fafc; font-family: 'Inter', sans-serif; }
-        .navbar { background: var(--amt-navy); border-bottom: 4px solid var(--amt-blue); }
-        .card-vessel { border: none; border-radius: 12px; transition: 0.3s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .card-vessel:hover { transform: translateY(-5px); }
-        .cat-badge { background: #e2e8f0; color: #475569; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; }
+        body { background: #f1f5f9; font-family: 'Inter', sans-serif; }
+        .navbar { background: var(--amt-navy); border-bottom: 3px solid var(--amt-blue); }
+        .nav-link { font-weight: 600; color: #cbd5e1 !important; margin-right: 15px; }
+        .nav-link:hover, .nav-link.active { color: white !important; }
+        .card-vessel { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand d-flex align-items-center fw-bold" href="/">
-                <img src="{{ url_for('static', filename='logo.png') }}" height="45" class="me-3">
-                AMT <span class="text-info ms-1">OPS</span>
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top p-3">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center me-5" href="/">
+                <img src="{{ url_for('static', filename='logo.png') }}" height="40" class="me-3">
+                <span class="fw-bold">AMT OPS</span>
             </a>
-            <div class="ms-auto d-flex align-items-center">
-                <div class="dropdown me-4">
-                    <button class="btn btn-link text-white position-relative" data-bs-toggle="dropdown">
-                        <i class="fas fa-bell fs-5"></i>
-                        {% if alerts %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">{{ alerts|length }}</span>{% endif %}
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-end shadow p-0" style="width: 280px;">
-                        <div class="p-2 border-bottom fw-bold small">Alerts</div>
-                        {% for a in alerts %}<div class="p-2 border-bottom small"><span class="badge bg-{{a.bg}} me-1">!</span> <strong>{{a.v}}</strong>: {{a.c}}</div>{% endfor %}
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link {{ 'active' if request.path == '/' }}" href="/">Dashboard</a></li>
+                    {% if current_user.role == 'admin' %}
+                    <li class="nav-item"><a class="nav-link {{ 'active' if request.path == '/admin' }}" href="/admin">Admin Panel</a></li>
+                    {% endif %}
+                </ul>
+                <div class="d-flex align-items-center">
+                    <div class="dropdown me-4">
+                        <button class="btn btn-link text-white position-relative p-0" data-bs-toggle="dropdown">
+                            <i class="fas fa-bell fs-5"></i>
+                            {% if alerts %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">{{ alerts|length }}</span>{% endif %}
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end shadow p-0" style="width: 300px;">
+                            <div class="p-2 border-bottom fw-bold small text-center">Expiring Certificates</div>
+                            {% for a in alerts %}<div class="p-2 border-bottom small"><strong>{{a.v}}</strong>: {{a.c}} <span class="badge bg-{{a.bg}} float-end">{{a.s}}</span></div>{% endfor %}
+                        </div>
                     </div>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm rounded-pill px-4">Logout</a>
                 </div>
-                {% if current_user.role == 'admin' %}<a href="/admin" class="btn btn-outline-info btn-sm me-2">Admin Panel</a>{% endif %}
-                <a href="/logout" class="btn btn-danger btn-sm">Logout</a>
             </div>
         </div>
     </nav>
-    <div class="container mt-4">{% block content %}{% endblock %}</div>
+    <div class="container-fluid px-5 mt-4">{% block content %}{% endblock %}</div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
