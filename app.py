@@ -3,20 +3,20 @@ import logging
 import pandas as pd
 from io import BytesIO
 from datetime import datetime, date
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
-# Setup logging
+# 1. Logging Setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'amt_enterprise_ops_2026_premium'
+app.config['SECRET_KEY'] = 'amt_enterprise_2026_pro'
 
-# --- RENDER DISK PATHING ---
+# 2. Render Disk Pathing
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.exists('/opt/render/project/src/uploads'):
     UPLOAD_FOLDER = '/opt/render/project/src/uploads'
@@ -33,7 +33,7 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODELS ---
+# 3. Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
@@ -51,7 +51,7 @@ class Vessel(db.Model):
     name = db.Column(db.String(100), nullable=False)
     imo = db.Column(db.String(20), unique=True)
     flag = db.Column(db.String(50))
-    class_society = db.Column(db.String(50)) # NEW: Class section
+    class_society = db.Column(db.String(50))
     vessel_type = db.Column(db.String(50))
     certificates = db.relationship('Certificate', backref='vessel', lazy=True, cascade="all, delete-orphan")
 
@@ -61,23 +61,23 @@ class Certificate(db.Model):
     name = db.Column(db.String(100))
     category = db.Column(db.String(50)) 
     expiry_date = db.Column(db.Date)
-    file_path = db.Column(db.String(200), nullable=True) # OPTIONAL UPLOAD
+    file_path = db.Column(db.String(200), nullable=True) 
     is_condition_of_class = db.Column(db.Boolean, default=False)
 
     def get_status(self):
-        if not self.expiry_date: return {"color": "secondary", "label": "No Date", "val": 3}
+        if not self.expiry_date: return {"color": "secondary", "label": "No Date", "bg": "secondary"}
         days = (self.expiry_date - date.today()).days
-        if days <= 0: return {"color": "danger", "label": f"Overdue ({abs(days)}d)", "val": 0}
-        if days <= 90: return {"color": "warning", "label": f"Expiring ({days}d)", "val": 1}
-        return {"color": "success", "label": f"Valid ({days}d)", "val": 2}
+        if days <= 0: return {"color": "danger", "label": f"Overdue ({abs(days)}d)", "bg": "danger"}
+        if days <= 90: return {"color": "warning", "label": f"Expiring ({days}d)", "bg": "warning"}
+        return {"color": "success", "label": f"Valid ({days}d)", "bg": "success"}
 
-# --- HELPERS ---
+# 4. Helpers
 def log_action(action):
-    log = AuditLog(user=current_user.username, action=action)
+    log = AuditLog(user=current_user.username if current_user.is_authenticated else "System", action=action)
     db.session.add(log)
     db.session.commit()
 
-# --- INITIALIZATION ---
+# 5. DB Init
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
@@ -88,14 +88,14 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- ROUTES ---
+# 6. Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
             login_user(user)
-            log_action("Logged in to the system")
+            log_action("User logged in")
             return redirect(url_for('dashboard'))
         flash("Invalid Credentials")
     return render_template('login.html')
@@ -109,13 +109,12 @@ def dashboard():
         query = query.filter(or_(Vessel.name.contains(search), Vessel.imo.contains(search)))
     vessels = query.all()
     
-    # Alert Bell Logic: Get all overdue/expiring certs
     alerts = []
     for v in Vessel.query.all():
         for c in v.certificates:
-            status = c.get_status()
-            if status['color'] in ['danger', 'warning']:
-                alerts.append({'vessel': v.name, 'cert': c.name, 'label': status['label'], 'color': status['color']})
+            s = c.get_status()
+            if s['bg'] in ['danger', 'warning']:
+                alerts.append({'vessel': v.name, 'cert': c.name, 'label': s['label'], 'bg': s['bg']})
                 
     return render_template('dashboard.html', vessels=vessels, alerts=alerts)
 
@@ -125,16 +124,15 @@ def admin():
     if current_user.role != 'admin': return redirect('/')
     vessels = Vessel.query.all()
     users = User.query.all()
-    audit_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(50).all()
+    audit_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
 
     if request.method == 'POST':
-        # 1. Add Vessel
         if 'add_vessel' in request.form:
-            v = Vessel(name=request.form['name'], imo=request.form['imo'], flag=request.form['flag'], class_society=request.form['class_society'], vessel_type=request.form['type'])
+            v = Vessel(name=request.form['name'], imo=request.form['imo'], flag=request.form['flag'], 
+                       class_society=request.form['class_society'], vessel_type=request.form['type'])
             db.session.add(v)
-            log_action(f"Added new vessel: {v.name}")
+            log_action(f"Vessel Added: {v.name}")
         
-        # 2. Add Certificate (File Optional)
         elif 'upload_cert' in request.form:
             f = request.files.get('file')
             fname = None
@@ -142,22 +140,17 @@ def admin():
                 fname = secure_filename(f"{request.form['vessel_id']}_{f.filename}")
                 f.save(os.path.join(app.config['UPLOAD_FOLDER'], fname))
             
-            c = Certificate(
-                vessel_id=request.form['vessel_id'], 
-                name=request.form['cert_name'], 
-                category=request.form['category'], 
-                expiry_date=datetime.strptime(request.form['expiry'], '%Y-%m-%d').date(), 
-                file_path=fname, 
-                is_condition_of_class=('is_coc' in request.form)
-            )
+            c = Certificate(vessel_id=request.form['vessel_id'], name=request.form['cert_name'], 
+                            category=request.form['category'], 
+                            expiry_date=datetime.strptime(request.form['expiry'], '%Y-%m-%d').date(), 
+                            file_path=fname, is_condition_of_class=('is_coc' in request.form))
             db.session.add(c)
-            log_action(f"Added certificate {c.name} for Vessel ID {c.vessel_id}")
+            log_action(f"Cert Uploaded: {c.name}")
 
-        # 3. Create User
         elif 'add_user' in request.form:
             u = User(username=request.form['new_user'], password=request.form['new_pass'], role=request.form['new_role'])
             db.session.add(u)
-            log_action(f"Created user: {u.username} with role {u.role}")
+            log_action(f"User Created: {u.username}")
 
         db.session.commit()
         return redirect(url_for('admin'))
@@ -167,32 +160,27 @@ def admin():
 @app.route('/export_excel')
 @login_required
 def export_excel():
-    vessels = Vessel.query.all()
     data = []
-    for v in vessels:
+    for v in Vessel.query.all():
         for c in v.certificates:
-            data.append({
-                "Vessel Name": v.name,
-                "IMO": v.imo,
-                "Flag": v.flag,
-                "Class": v.class_society,
-                "Certificate": c.name,
-                "Expiry Date": c.expiry_date,
-                "Status": c.get_status()['label']
-            })
-    
+            data.append({"Vessel": v.name, "IMO": v.imo, "Class": v.class_society, "Cert": c.name, 
+                         "Expiry": c.expiry_date, "Status": c.get_status()['label']})
     df = pd.DataFrame(data)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Fleet Status')
+        df.to_excel(writer, index=False)
     output.seek(0)
-    
-    log_action("Exported Fleet Status to Excel")
-    return send_file(output, download_name=f"AMT_Fleet_Status_{date.today()}.xlsx", as_attachment=True)
+    log_action("Excel Exported")
+    return send_file(output, download_name=f"Fleet_Report_{date.today()}.xlsx", as_attachment=True)
+
+@app.route('/uploads/<filename>')
+@login_required
+def view_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/logout')
 def logout():
-    log_action("Logged out")
+    log_action("User logged out")
     logout_user(); return redirect(url_for('login'))
 
 if __name__ == '__main__':
