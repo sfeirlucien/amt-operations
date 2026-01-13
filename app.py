@@ -14,9 +14,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'amt_master_enterprise_2026'
+app.config['SECRET_KEY'] = 'amt_enterprise_v9_2026'
 
-# 2. Render Disk Pathing
+# 2. Path Management
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.exists('/opt/render/project/src/uploads'):
     UPLOAD_FOLDER = '/opt/render/project/src/uploads'
@@ -25,9 +25,7 @@ else:
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Database sits on the Persistent Disk
-db_path = os.path.join(UPLOAD_FOLDER, 'amt_v7_final.db')
+db_path = os.path.join(UPLOAD_FOLDER, 'amt_v9_final.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -65,14 +63,15 @@ class Certificate(db.Model):
     file_path = db.Column(db.String(200), nullable=True)
 
     def get_status(self):
-        if not self.expiry_date: return {"bg": "secondary", "label": "No Date"}
+        if not self.expiry_date: return {"bg": "secondary", "label": "No Date", "code": "gray"}
         days = (self.expiry_date - date.today()).days
-        if days <= 0: return {"bg": "danger", "label": f"EXPIRED"}
-        if days <= 90: return {"bg": "warning", "label": f"{days} Days"}
-        return {"bg": "success", "label": "VALID"}
+        if days <= 0: return {"bg": "danger", "label": "EXPIRED", "code": "red"}
+        if days <= 90: return {"bg": "warning", "label": f"{days} Days", "code": "amber"}
+        return {"bg": "success", "label": "VALID", "code": "green"}
 
 def log_action(msg):
-    log = AuditLog(user=current_user.username if current_user.is_authenticated else "System", action=msg)
+    user_name = current_user.username if current_user.is_authenticated else "System"
+    log = AuditLog(user=user_name, action=msg)
     db.session.add(log)
     db.session.commit()
 
@@ -96,17 +95,33 @@ def login():
             login_user(user)
             log_action("User Login")
             return redirect(url_for('dashboard'))
+        flash("Invalid Credentials")
     return render_template('login.html')
 
 @app.route('/')
 @login_required
 def dashboard():
-    vessels = Vessel.query.all()
+    # Filtering Logic
+    v_filter = request.args.get('vessel', '')
+    c_filter = request.args.get('class', '')
+    s_filter = request.args.get('status', '')
+
+    vessels_query = Vessel.query
+    if v_filter:
+        vessels_query = vessels_query.filter(Vessel.name.contains(v_filter))
+    if c_filter:
+        vessels_query = vessels_query.filter(Vessel.class_society == c_filter)
+    
+    vessels = vessels_query.all()
+    
+    # Alert Bell
     alerts = []
-    for v in vessels:
+    for v in Vessel.query.all():
         for c in v.certificates:
-            if c.get_status()['bg'] in ['danger', 'warning']:
-                alerts.append({'v': v.name, 'c': c.name, 's': c.get_status()['label'], 'bg': c.get_status()['bg']})
+            stat = c.get_status()
+            if stat['code'] in ['red', 'amber']:
+                alerts.append({'v': v.name, 'c': c.name, 's': stat['label'], 'bg': stat['bg']})
+                
     return render_template('dashboard.html', vessels=vessels, alerts=alerts)
 
 @app.route('/admin', methods=['GET', 'POST'])
@@ -129,43 +144,27 @@ def admin():
         elif action == 'add_user':
             u = User(username=request.form.get('new_user'), password=request.form.get('new_pass'), role=request.form.get('new_role'))
             db.session.add(u)
-        elif action == 'restore_db':
-            f = request.files.get('backup_file')
-            if f:
-                f.save(db_path)
-                return redirect(url_for('logout'))
         db.session.commit()
-    return render_template('admin.html', vessels=Vessel.query.all(), users=User.query.all(), logs=AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(15).all())
+    
+    vessels = Vessel.query.all()
+    users = User.query.all()
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(50).all()
+    return render_template('admin.html', vessels=vessels, users=users, logs=logs)
 
-@app.route('/cert/<int:id>/delete')
+@app.route('/user/delete/<int:id>')
 @login_required
-def delete_cert(id):
-    c = Certificate.query.get_or_404(id)
-    log_action(f"Deleted Cert {c.name}")
-    db.session.delete(c)
-    db.session.commit()
-    return redirect(url_for('dashboard'))
-
-@app.route('/cert/<int:id>/update', methods=['POST'])
-@login_required
-def update_cert(id):
-    c = Certificate.query.get_or_404(id)
-    c.name = request.form.get('new_name')
-    c.expiry_date = datetime.strptime(request.form.get('new_expiry'), '%Y-%m-%d').date()
-    log_action(f"Updated Cert {c.name}")
-    db.session.commit()
-    return redirect(url_for('dashboard'))
+def delete_user(id):
+    if current_user.role == 'admin':
+        u = User.query.get(id)
+        if u.username != 'admin': # Protect master admin
+            db.session.delete(u)
+            db.session.commit()
+    return redirect(url_for('admin'))
 
 @app.route('/backup')
 @login_required
 def backup():
-    log_action("Downloaded DB Backup")
     return send_file(db_path, as_attachment=True)
-
-@app.route('/uploads/<filename>')
-@login_required
-def view_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/logout')
 def logout():
