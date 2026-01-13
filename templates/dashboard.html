@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h2 class="fw-bold mb-1 text-dark">Fleet Operations Hub</h2>
+        <p class="text-muted">Real-time vessel compliance & survey tracking</p>
+    </div>
+    <div class="text-end" style="width: 350px;">
+        <form action="/" method="GET" class="mb-3">
+            <div class="input-group shadow-sm">
+                <input type="text" name="search" class="form-control border-0" placeholder="Search Vessel Name...">
+                <button class="btn btn-white border-0 bg-white" type="submit"><i class="fas fa-search"></i></button>
+            </div>
+        </form>
+        <div class="small fw-bold">Fleet Compliance: <span class="text-primary">{{ health }}%</span></div>
+        <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-primary" style="width: {{ health }}%"></div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="row">
+    {% for v in vessels %}
+    <div class="col-12 mb-4">
+        <div class="glass-card p-4">
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h4 class="fw-bold text-dark mb-0">{{ v.name }}</h4>
+                    <span class="text-muted small">IMO: {{ v.imo }} • {{ v.vessel_type }}</span>
+                </div>
+                <span class="badge bg-light text-dark border-0 p-2 px-3 shadow-sm rounded-pill">{{ v.flag }}</span>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <h6 class="fw-bold mb-3 text-muted small text-uppercase">Statutory & Class Certificates</h6>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="text-muted small">
+                                <tr><th>Certificate</th><th>Expiry Date</th><th>Compliance Status</th><th>Action</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for c in v.certificates if not c.is_condition_of_class %}
+                                <tr>
+                                    <td class="fw-bold">{{ c.name }}</td>
+                                    <td>{{ c.expiry_date }}</td>
+                                    <td><span class="badge-status bg-{{ c.get_status().color }}-subtle text-{{ c.get_status().color }}">{{ c.get_status().label }}</span></td>
+                                    <td><a href="/uploads/{{ c.file_path }}" target="_blank" class="text-dark"><i class="fas fa-file-pdf fs-5"></i></a></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-lg-4 border-start ps-4">
+                    <h6 class="fw-bold mb-3 text-danger small text-uppercase">Conditions of Class (CoC)</h6>
+                    {% for c in v.certificates if c.is_condition_of_class %}
+                    <div class="p-2 mb-2 rounded bg-danger-subtle border-start border-danger border-4">
+                        <div class="fw-bold small">{{ c.name }}</div>
+                        <div class="text-danger small fw-bold">Due: {{ c.expiry_date }}</div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small">All technical recommendations closed.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
