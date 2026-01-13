@@ -150,10 +150,29 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-if __name__ == '__main__':
+# --- DATABASE INITIALIZATION ---
+def init_db():
     with app.app_context():
+        # This line creates the .db file and all tables (User, Vessel, Certificate)
         db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            db.session.add(User(username='admin', password='admin_password_2026', role='admin'))
+        
+        # Check if the admin user exists, if not, create it
+        admin_exists = User.query.filter_by(username='admin').first()
+        if not admin_exists:
+            logger.info("Creating default admin user...")
+            new_admin = User(
+                username='admin', 
+                password='admin_password_2026', 
+                role='admin'
+            )
+            db.session.add(new_admin)
             db.session.commit()
+            logger.info("Admin user created successfully.")
+
+# On Render, we call init_db() directly when the script is loaded
+init_db()
+
+if __name__ == '__main__':
+    # Local development run
     app.run(debug=True)
+
