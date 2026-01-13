@@ -7,32 +7,29 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
-# 1. Setup Logging
+# Setup logging to catch the 500 error in Render Logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'amt_premium_ops_2026'
 
-# 2. Path Management (Bulletproof)
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+# --- RENDER DISK PATHING ---
+# On Render, the disk is usually at /opt/render/project/src/uploads
+# We check if we are on Render; if not, we use the local folder.
+if os.path.exists('/opt/render/project/src/uploads'):
+    UPLOAD_FOLDER = '/opt/render/project/src/uploads'
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads')
 
-# 3. Create Folder if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
-    try:
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        logger.info(f"Successfully created: {UPLOAD_FOLDER}")
-    except Exception as e:
-        # Fallback to a local path if the absolute path fails
-        UPLOAD_FOLDER = 'uploads'
-        if not os.path.exists(UPLOAD_FOLDER):
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        logger.error(f"Manual folder creation error: {e}. Using fallback: {UPLOAD_FOLDER}")
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(UPLOAD_FOLDER, 'amt_ops_vfinal.db')
+# Move Database onto the Persistent Disk so it survives restarts
+db_path = os.path.join(UPLOAD_FOLDER, 'amt_ops_vfinal.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -77,28 +74,36 @@ def load_user(user_id):
 # --- ROUTES ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and user.password == request.form.get('password'):
-            login_user(user)
-            return redirect(url_for('dashboard'))
-        flash("Incorrect username or password")
-    return render_template('login.html')
+    try:
+        if request.method == 'POST':
+            user = User.query.filter_by(username=request.form.get('username')).first()
+            if user and user.password == request.form.get('password'):
+                login_user(user)
+                return redirect(url_for('dashboard'))
+            flash("Incorrect username or password")
+        return render_template('login.html')
+    except Exception as e:
+        logger.error(f"Login Error: {e}")
+        return str(e), 500
 
 @app.route('/')
 @login_required
 def dashboard():
-    search = request.args.get('search', '')
-    query = Vessel.query
-    if search:
-        query = query.filter(or_(Vessel.name.contains(search), Vessel.imo.contains(search)))
-    vessels = query.all()
-    
-    total_certs = Certificate.query.count()
-    green_certs = sum(1 for c in Certificate.query.all() if c.get_status()['color'] == 'success')
-    health = round((green_certs / total_certs * 100)) if total_certs > 0 else 100
-    
-    return render_template('dashboard.html', vessels=vessels, health=health)
+    try:
+        search = request.args.get('search', '')
+        query = Vessel.query
+        if search:
+            query = query.filter(or_(Vessel.name.contains(search), Vessel.imo.contains(search)))
+        vessels = query.all()
+        
+        total_certs = Certificate.query.count()
+        green_certs = sum(1 for c in Certificate.query.all() if c.get_status()['color'] == 'success')
+        health = round((green_certs / total_certs * 100)) if total_certs > 0 else 100
+        
+        return render_template('dashboard.html', vessels=vessels, health=health)
+    except Exception as e:
+        logger.error(f"Dashboard Error: {e}")
+        return str(e), 500
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -136,10 +141,9 @@ def view_file(filename):
 @app.route('/backup')
 @login_required
 def backup():
-    db_path = os.path.join(BASE_DIR, 'amt_ops_vfinal.db')
     if os.path.exists(db_path):
         return send_file(db_path, as_attachment=True)
-    return "Database file not found", 404
+    return "Database not found", 404
 
 @app.route('/logout')
 def logout():
@@ -153,4 +157,3 @@ if __name__ == '__main__':
             db.session.add(User(username='admin', password='admin_password_2026', role='admin'))
             db.session.commit()
     app.run(debug=True)
-
