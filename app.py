@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'amt_enterprise_2026_pro'
 
-# 2. Render Disk Pathing
+# 2. Pathing Logic
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.exists('/opt/render/project/src/uploads'):
     UPLOAD_FOLDER = '/opt/render/project/src/uploads'
@@ -25,7 +25,7 @@ else:
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-db_path = os.path.join(UPLOAD_FOLDER, 'amt_v5_pro.db')
+db_path = os.path.join(UPLOAD_FOLDER, 'amt_v6_pro.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -38,7 +38,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    role = db.Column(db.String(20)) # 'admin' or 'viewer'
+    role = db.Column(db.String(20))
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,13 +71,14 @@ class Certificate(db.Model):
         if days <= 90: return {"color": "warning", "label": f"Expiring ({days}d)", "bg": "warning"}
         return {"color": "success", "label": f"Valid ({days}d)", "bg": "success"}
 
-# 4. Helpers
+# 4. Global Action Logger
 def log_action(action):
-    log = AuditLog(user=current_user.username if current_user.is_authenticated else "System", action=action)
+    user_name = current_user.username if current_user.is_authenticated else "System"
+    log = AuditLog(user=user_name, action=action)
     db.session.add(log)
     db.session.commit()
 
-# 5. DB Init
+# 5. Initialization
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
@@ -95,7 +96,7 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
             login_user(user)
-            log_action("User logged in")
+            log_action("Successful Login")
             return redirect(url_for('dashboard'))
         flash("Invalid Credentials")
     return render_template('login.html')
@@ -115,46 +116,62 @@ def dashboard():
             s = c.get_status()
             if s['bg'] in ['danger', 'warning']:
                 alerts.append({'vessel': v.name, 'cert': c.name, 'label': s['label'], 'bg': s['bg']})
-                
     return render_template('dashboard.html', vessels=vessels, alerts=alerts)
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
 def admin():
-    if current_user.role != 'admin': return redirect('/')
-    vessels = Vessel.query.all()
-    users = User.query.all()
-    audit_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
-
+    if current_user.role != 'admin': return redirect(url_for('dashboard'))
+    
     if request.method == 'POST':
-        if 'add_vessel' in request.form:
-            v = Vessel(name=request.form['name'], imo=request.form['imo'], flag=request.form['flag'], 
-                       class_society=request.form['class_society'], vessel_type=request.form['type'])
-            db.session.add(v)
-            log_action(f"Vessel Added: {v.name}")
+        action_type = request.form.get('form_action')
         
-        elif 'upload_cert' in request.form:
+        if action_type == 'add_vessel':
+            v = Vessel(
+                name=request.form.get('name'), 
+                imo=request.form.get('imo'), 
+                flag=request.form.get('flag'), 
+                class_society=request.form.get('class_society'), 
+                vessel_type=request.form.get('type')
+            )
+            db.session.add(v)
+            log_action(f"Vessel Registered: {v.name}")
+        
+        elif action_type == 'upload_cert':
             f = request.files.get('file')
             fname = None
+            v_id = request.form.get('vessel_id')
             if f and f.filename != '':
-                fname = secure_filename(f"{request.form['vessel_id']}_{f.filename}")
+                fname = secure_filename(f"{v_id}_{f.filename}")
                 f.save(os.path.join(app.config['UPLOAD_FOLDER'], fname))
             
-            c = Certificate(vessel_id=request.form['vessel_id'], name=request.form['cert_name'], 
-                            category=request.form['category'], 
-                            expiry_date=datetime.strptime(request.form['expiry'], '%Y-%m-%d').date(), 
-                            file_path=fname, is_condition_of_class=('is_coc' in request.form))
+            exp_str = request.form.get('expiry')
+            c = Certificate(
+                vessel_id=v_id, 
+                name=request.form.get('cert_name'), 
+                category=request.form.get('category'), 
+                expiry_date=datetime.strptime(exp_str, '%Y-%m-%d').date() if exp_str else None, 
+                file_path=fname, 
+                is_condition_of_class=('is_coc' in request.form)
+            )
             db.session.add(c)
-            log_action(f"Cert Uploaded: {c.name}")
+            log_action(f"Certificate Created: {c.name}")
 
-        elif 'add_user' in request.form:
-            u = User(username=request.form['new_user'], password=request.form['new_pass'], role=request.form['new_role'])
+        elif action_type == 'add_user':
+            u = User(
+                username=request.form.get('new_user'), 
+                password=request.form.get('new_pass'), 
+                role=request.form.get('new_role')
+            )
             db.session.add(u)
-            log_action(f"User Created: {u.username}")
+            log_action(f"Access Granted to User: {u.username}")
 
         db.session.commit()
         return redirect(url_for('admin'))
     
+    vessels = Vessel.query.all()
+    users = User.query.all()
+    audit_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
     return render_template('admin.html', vessels=vessels, users=users, audit_logs=audit_logs)
 
 @app.route('/export_excel')
@@ -163,15 +180,17 @@ def export_excel():
     data = []
     for v in Vessel.query.all():
         for c in v.certificates:
-            data.append({"Vessel": v.name, "IMO": v.imo, "Class": v.class_society, "Cert": c.name, 
-                         "Expiry": c.expiry_date, "Status": c.get_status()['label']})
+            data.append({
+                "Vessel": v.name, "IMO": v.imo, "Class": v.class_society, 
+                "Cert": c.name, "Expiry": c.expiry_date, "Status": c.get_status()['label']
+            })
     df = pd.DataFrame(data)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
     output.seek(0)
-    log_action("Excel Exported")
-    return send_file(output, download_name=f"Fleet_Report_{date.today()}.xlsx", as_attachment=True)
+    log_action("Fleet Report Exported to Excel")
+    return send_file(output, download_name=f"Fleet_Status_{date.today()}.xlsx", as_attachment=True)
 
 @app.route('/uploads/<filename>')
 @login_required
@@ -180,8 +199,9 @@ def view_file(filename):
 
 @app.route('/logout')
 def logout():
-    log_action("User logged out")
-    logout_user(); return redirect(url_for('login'))
+    log_action("User Logout")
+    logout_user()
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(debug=True)
