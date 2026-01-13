@@ -1,16 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-<h2 class="fw-bold mb-4">Management Console</h2>
+<h2 class="fw-bold mb-4">System Management</h2>
 
 <div class="row">
     <div class="col-12 mb-4">
-        <div class="glass-card p-4 bg-dark text-white">
-            <h5 class="fw-bold mb-3"><i class="fas fa-history me-2"></i>Audit History (Latest Actions)</h5>
-            <div style="max-height: 200px; overflow-y: auto;" class="small">
+        <div class="card-pro p-4 bg-dark text-white">
+            <h6 class="fw-bold text-info mb-3">Recent Audit History</h6>
+            <div class="small" style="max-height: 150px; overflow-y: auto;">
                 {% for log in audit_logs %}
-                <div class="border-bottom border-secondary py-1">
-                    <span class="text-info">[{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}]</span> 
-                    <strong>{{ log.user }}</strong>: {{ log.action }}
+                <div class="border-bottom border-secondary py-1 text-secondary">
+                    <span class="text-white">[{{ log.timestamp.strftime('%H:%M:%S') }}]</span> {{ log.user }}: {{ log.action }}
                 </div>
                 {% endfor %}
             </div>
@@ -18,48 +17,40 @@
     </div>
 
     <div class="col-md-4 mb-4">
-        <div class="glass-card p-4 h-100">
-            <h5 class="fw-bold mb-3 text-primary"><i class="fas fa-users me-2"></i>User Management</h5>
+        <div class="card-pro p-4">
+            <h6 class="fw-bold mb-3">Access Control</h6>
             <form method="POST">
                 <input type="hidden" name="add_user" value="1">
                 <input name="new_user" class="form-control mb-2" placeholder="Username" required>
                 <input name="new_pass" class="form-control mb-2" placeholder="Password" required>
-                <select name="new_role" class="form-select mb-3">
-                    <option value="viewer">Viewer</option>
-                    <option value="admin">Admin</option>
-                </select>
+                <select name="new_role" class="form-select mb-3"><option value="viewer">Viewer</option><option value="admin">Admin</option></select>
                 <button class="btn btn-primary w-100 rounded-pill">Create User</button>
             </form>
-            <hr>
-            <h6 class="text-muted small">Current Users:</h6>
-            {% for u in users %}
-            <div class="d-flex justify-content-between small py-1">
-                <span>{{ u.username }}</span><span class="badge bg-secondary">{{ u.role }}</span>
-            </div>
-            {% endfor %}
         </div>
     </div>
 
     <div class="col-md-8 mb-4">
-        <div class="glass-card p-4">
-            <h5 class="fw-bold mb-3 text-primary"><i class="fas fa-ship me-2"></i>Vessel Master Setup</h5>
-            <form method="POST">
+        <div class="card-pro p-4">
+            <h6 class="fw-bold mb-3">Vessel Registry & Certifications</h6>
+            <form method="POST" class="row g-3">
                 <input type="hidden" name="add_vessel" value="1">
-                <div class="row">
-                    <div class="col-md-6 mb-3"><input name="name" class="form-control" placeholder="Vessel Name" required></div>
-                    <div class="col-md-6 mb-3"><input name="imo" class="form-control" placeholder="IMO Number" required></div>
-                    <div class="col-md-4 mb-3"><input name="flag" class="form-control" placeholder="Flag State"></div>
-                    <div class="col-md-4 mb-3"><input name="class_society" class="form-control" placeholder="Class Society (ABS/DNV/LR)"></div>
-                    <div class="col-md-4 mb-3"><input name="type" class="form-control" placeholder="Vessel Type"></div>
-                </div>
-                <button class="btn btn-primary w-100 rounded-pill">Register Vessel</button>
+                <div class="col-md-6"><input name="name" class="form-control" placeholder="Vessel Name" required></div>
+                <div class="col-md-6"><input name="imo" class="form-control" placeholder="IMO Number" required></div>
+                <div class="col-md-4"><input name="flag" class="form-control" placeholder="Flag"></div>
+                <div class="col-md-4"><input name="class_society" class="form-control" placeholder="Class (e.g. ABS)"></div>
+                <div class="col-md-4"><button class="btn btn-dark w-100">Register Vessel</button></div>
             </form>
-        </div>
-        
-        <div class="glass-card p-4 mt-4 bg-light border-primary">
-            <h5 class="fw-bold"><i class="fas fa-file-excel me-2 text-success"></i>Database Sync</h5>
-            <p class="small text-muted">Generate a live Excel report of the entire fleet status and compliance.</p>
-            <a href="/export_excel" class="btn btn-success rounded-pill px-4">Download Fleet Excel</a>
+            <hr>
+            <form method="POST" enctype="multipart/form-data" class="row g-3">
+                <input type="hidden" name="upload_cert" value="1">
+                <div class="col-md-4">
+                    <select name="vessel_id" class="form-select">{% for v in vessels %}<option value="{{v.id}}">{{v.name}}</option>{% endfor %}</select>
+                </div>
+                <div class="col-md-4"><input name="cert_name" class="form-control" placeholder="Cert Name" required></div>
+                <div class="col-md-4"><input type="date" name="expiry" class="form-control" required></div>
+                <div class="col-md-8"><input type="file" name="file" class="form-control"></div>
+                <div class="col-md-4"><button class="btn btn-success w-100">Add Certificate</button></div>
+            </form>
         </div>
     </div>
 </div>
